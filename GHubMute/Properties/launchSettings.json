@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "GHubMute": {
+      "commandName": "Project",
+      "commandLineArgs": "toggle",
+      "environmentVariables": {
+        "NETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

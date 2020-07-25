@@ -1,0 +1,38 @@
+# Set default behavior to automatically normalize line endings.
+* text=auto
+
+# General text files
+*.config  text
+*.cs      text diff=csharp
+*.json    text
+*.md      text
+*.props   text
+*.resx    text
+*.targets text
+*.txt     text
+*.xml     text
+
+# Project files
+*.csproj text=auto
+*.dbproj text=auto
+*.sln text=auto eol=crlf
+
+# Binary data files
+*.jpg  	binary
+*.jpeg  binary
+*.png 	binary
+*.gif 	binary
+*.dll   binary
+*.pdb   binary
+*.exe   binary
+*.nupkg binary
+*.zip   binary
+
+# Scripts
+*.sh  text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text
+
+# Keys and Certs
+*.snk   binary
