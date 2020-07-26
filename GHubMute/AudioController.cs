@@ -1,4 +1,6 @@
-﻿using NAudio.CoreAudioApi;
+﻿using System.Collections.Generic;
+using System.Linq;
+using NAudio.CoreAudioApi;
 
 namespace GHubMute
 {
@@ -13,61 +15,84 @@ namespace GHubMute
 
         public AudioCaptureStatus Toggle()
         {
-            using var deviceEnumerator = new MMDeviceEnumerator();
+            var result = CheckInternal();
 
-            int unmuted = 0;
-            int total = 0;
-
-            foreach (var item in deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            if (result.Unmuted.Count != 0)
             {
-                total++;
-
-                using (item)
-                {
-                    using var volume = item.AudioEndpointVolume;
-                    if (!volume.Mute)
-                    {
-                        unmuted++;
-                    }
-                }
+                return Mute(result.Unmuted);
             }
-
-            if (total == 0)
+            else if (result.Muted.Count != 0)
+            {
+                return Unmute(result.Muted);
+            }
+            else
             {
                 return AudioCaptureStatus.Unknown;
             }
+        }
 
-            return unmuted == 0
-                ? Unmute(deviceEnumerator)
-                : Mute(deviceEnumerator);
+        public AudioCaptureStatus Check()
+        {
+            var result = CheckInternal();
+
+            if (result.Unmuted.Count != 0)
+            {
+                return AudioCaptureStatus.Capturing;
+            }
+            else if (result.Muted.Count != 0)
+            {
+                return AudioCaptureStatus.Muted;
+            }
+            else
+            {
+                return AudioCaptureStatus.Unknown;
+            }
+        }
+
+        private CheckResult CheckInternal()
+        {
+            using var deviceEnumerator = new MMDeviceEnumerator();
+
+            var result = new CheckResult();
+
+            foreach (var device in deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            {
+                using (device)
+                {
+                    using var volume = device.AudioEndpointVolume;
+                    (volume.Mute ? result.Muted : result.Unmuted).Add(device.ID);
+                }
+            }
+
+            return result;
         }
 
         public AudioCaptureStatus Mute()
         {
             using var deviceEnumerator = new MMDeviceEnumerator();
-            return Mute(deviceEnumerator);
+            return Mute(deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active));
         }
 
-        public AudioCaptureStatus Unmute()
+        private AudioCaptureStatus Mute(IEnumerable<string> deviceIds)
         {
             using var deviceEnumerator = new MMDeviceEnumerator();
-            return Unmute(deviceEnumerator);
+            return Mute(deviceIds.Select(deviceEnumerator.GetDevice));
         }
 
-        private AudioCaptureStatus Mute(MMDeviceEnumerator deviceEnumerator)
+        private AudioCaptureStatus Mute(IEnumerable<MMDevice> devices)
         {
             int totalCount = 0;
 
-            foreach (var item in deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            foreach (var device in devices)
             {
                 totalCount++;
 
-                using (item)
+                using (device)
                 {
-                    using var volume = item.AudioEndpointVolume;
+                    using var volume = device.AudioEndpointVolume;
                     if (!volume.Mute)
                     {
-                        _state.FlagDeviceAsManaged(item.ID);
+                        _state.FlagDeviceAsManaged(device.ID);
                         volume.Mute = true;
                     }
                 }
@@ -81,23 +106,39 @@ namespace GHubMute
             return AudioCaptureStatus.Muted;
         }
 
-        private AudioCaptureStatus Unmute(MMDeviceEnumerator deviceEnumerator)
+        public AudioCaptureStatus Unmute()
         {
+            using var deviceEnumerator = new MMDeviceEnumerator();
+            var devices = deviceEnumerator
+                .EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                .Where(d => _state.DeviceIdIsManaged(d.ID));
+            return Unmute(devices);
+        }
+
+        private AudioCaptureStatus Unmute(IEnumerable<string> deviceIds)
+        {
+            using var deviceEnumerator = new MMDeviceEnumerator();
+            var devices = deviceIds
+                .Where(id => _state.DeviceIdIsManaged(id))
+                .Select(deviceEnumerator.GetDevice);
+            return Unmute(devices);
+        }
+
+        private AudioCaptureStatus Unmute(IEnumerable<MMDevice> devices)
+        {
+            using var deviceEnumerator = new MMDeviceEnumerator();
             int totalCount = 0;
 
-            foreach (var item in deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
+            foreach (var device in devices)
             {
                 totalCount++;
 
-                using (item)
+                using (device)
                 {
-                    if (_state.DeviceIdIsManaged(item.ID))
+                    using var volume = device.AudioEndpointVolume;
+                    if (volume.Mute)
                     {
-                        using var volume = item.AudioEndpointVolume;
-                        if (volume.Mute)
-                        {
-                            volume.Mute = false;
-                        }
+                        volume.Mute = false;
                     }
                 }
             }
@@ -108,6 +149,12 @@ namespace GHubMute
             }
 
             return AudioCaptureStatus.Capturing;
+        }
+
+        private class CheckResult
+        {
+            public List<string> Unmuted = new List<string>();
+            public List<string> Muted = new List<string>();
         }
     }
 }

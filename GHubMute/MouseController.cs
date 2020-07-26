@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using LedCSharp;
 
@@ -30,7 +31,7 @@ namespace GHubMute
 
         public int[] Zones { get; set; } = new[] { 0, 1, 2 };
 
-        public int[] IndicatorTimings { get; set; } = new [] { 150, 500 };
+        public int[] IndicatorTimings { get; set; } = new [] { 200, 400 };
 
         public LogiColor ErrorColor { get; set; } = new LogiColor(100, 0, 89);
 
@@ -69,7 +70,7 @@ namespace GHubMute
             await ShowIndicatorColors(Enumerable.Repeat(colors, 4).SelectMany(c => c), new[] { 150 }).ConfigureAwait(false);
         }
 
-        private async Task ShowIndicatorColors(IEnumerable<LogiColor> colors, int[] delays)
+        private async Task ShowIndicatorColors(IEnumerable<LogiColor> colors, int[] delays) => await Task.Run(() =>
         {
             if (!Initialize())
             {
@@ -84,7 +85,7 @@ namespace GHubMute
             {
                 ForceMouseColors(color);
                 var delayMs = delays[Math.Min(colorIndex, delays.Length - 1)];
-                await Task.Delay(delayMs);
+                Thread.Sleep(delayMs);
                 colorIndex++;
             }
 
@@ -92,7 +93,7 @@ namespace GHubMute
             {
                 LogitechGSDK.LogiLedRestoreLighting();
             }
-        }
+        }).ConfigureAwait(false);
 
         private void ForceMouseColors(LogiColor color)
         {

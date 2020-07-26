@@ -16,38 +16,51 @@ namespace GHubMute
 
             var capturingColors = new Option<string>(
                 new[] { "--cc", "--capture-colors" },
-                getDefaultValue: () => "100,0,89;100,0,0",
+                getDefaultValue: () => "50,0,25;100,0,10",
                 description: "Mouse colors when mics are capturing audio"
             );
 
             var muteColors = new Option<string>(
                 new[] { "--mc", "--mute-colors" },
-                getDefaultValue: () => "100,100,0;0,76,100",
+                getDefaultValue: () => "100,100,0;0,40,60",
                 description: "Mouse colors when mics are muted"
             );
 
-            var toggleCommand = new Command("toggle", "Toggles the mute state");
-            toggleCommand.Handler = CommandHandler.Create(() =>
+            var toggleCommand = new Command("toggle", "Toggles the mute state")
             {
-                status = audioController.Toggle();
-            });
-
-            var muteCommand = new Command("mute", "Forces the input devices to be muted");
-            muteCommand.Handler = CommandHandler.Create(() =>
+                Handler = CommandHandler.Create(() =>
+                {
+                    status = audioController.Toggle();
+                })
+            };
+            var muteCommand = new Command("mute", "Forces the input devices to be muted")
             {
-                status = audioController.Mute();
-            });
-            var unmuteCommand = new Command("unmute", "Forces the muted input devices to become unmuted");
-            unmuteCommand.Handler = CommandHandler.Create(() =>
+                Handler = CommandHandler.Create(() =>
+                {
+                    status = audioController.Mute();
+                })
+            };
+            var unmuteCommand = new Command("unmute", "Forces the muted input devices to become unmuted")
             {
-                status = audioController.Unmute();
-            });
+                Handler = CommandHandler.Create(() =>
+                {
+                    status = audioController.Unmute();
+                })
+            };
+            var checkCommand = new Command("check", "Checks the mute status of audio devices")
+            {
+                Handler = CommandHandler.Create(() =>
+                {
+                    status = audioController.Check();
+                })
+            };
 
             var rootCommand = new RootCommand
             {
                 toggleCommand,
                 muteCommand,
                 unmuteCommand,
+                checkCommand,
                 capturingColors,
                 muteColors
             };
