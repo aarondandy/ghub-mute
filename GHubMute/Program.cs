@@ -1,8 +1,8 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 
 namespace GHubMute
 {
@@ -10,44 +10,72 @@ namespace GHubMute
     {
         static async Task<int> Main(string[] args)
         {
-            var environmentName = Environment.GetEnvironmentVariable("NETCORE_ENVIRONMENT") ?? "Production";
-            var configuaration = new ConfigurationBuilder()
-                .AddJsonFile($"appsettings.json", optional: true)
-                .AddJsonFile($"appsettings.{environmentName}.json", optional: true)
-                .AddEnvironmentVariables()
-                .Build();
-
-            await using var state = await PersistentState.Load();
+            AudioCaptureStatus? status = null;
+            using var state = await PersistentState.Load().ConfigureAwait(false);
             var audioController = new AudioController(state);
 
-            var toggleCommand = new Command("toggle", "Toggles the mute state")
+            var capturingColors = new Option<string>(
+                new[] { "--cc", "--capture-colors" },
+                getDefaultValue: () => "100,0,89;100,0,0",
+                description: "Mouse colors when mics are capturing audio"
+            );
+
+            var muteColors = new Option<string>(
+                new[] { "--mc", "--mute-colors" },
+                getDefaultValue: () => "100,100,0;0,76,100",
+                description: "Mouse colors when mics are muted"
+            );
+
+            var toggleCommand = new Command("toggle", "Toggles the mute state");
+            toggleCommand.Handler = CommandHandler.Create(() =>
             {
-                Handler = CommandHandler.Create(audioController.Toggle)
-            };
-            var muteCommand = new Command("mute", "Forces the input devices to be muted")
+                status = audioController.Toggle();
+            });
+
+            var muteCommand = new Command("mute", "Forces the input devices to be muted");
+            muteCommand.Handler = CommandHandler.Create(() =>
             {
-                Handler = CommandHandler.Create(audioController.Mute)
-            };
-            var unmuteCommand = new Command("unmute", "Forces the muted input devices to become unmuted")
+                status = audioController.Mute();
+            });
+            var unmuteCommand = new Command("unmute", "Forces the muted input devices to become unmuted");
+            unmuteCommand.Handler = CommandHandler.Create(() =>
             {
-                Handler = CommandHandler.Create(audioController.Unmute)
-            };
+                status = audioController.Unmute();
+            });
 
             var rootCommand = new RootCommand
             {
                 toggleCommand,
                 muteCommand,
-                unmuteCommand
+                unmuteCommand,
+                capturingColors,
+                muteColors
             };
             rootCommand.Description = "Works with G-Hub to control microphone inputs";
             rootCommand.Handler = toggleCommand.Handler;
 
-            var result = await rootCommand.InvokeAsync(args);
+            var invokeResult = rootCommand.Invoke(args);
 
-            await state.SaveChanges();
+            var todoList = new List<Task>();
 
-            return result;
+            if (status.HasValue)
+            {
+                var mouseController = new MouseController();
 
+                var parseResult = rootCommand.Parse(args);
+                mouseController.CapturingColors = LogiColor.ParseMultiple(parseResult.ValueForOption(capturingColors));
+                mouseController.MutedColors = LogiColor.ParseMultiple(parseResult.ValueForOption(muteColors));
+
+                todoList.Add(mouseController.Show(status.GetValueOrDefault()));
+            }
+
+            todoList.Add(state.SaveChanges().AsTask());
+
+            await Task.WhenAll(todoList);
+
+            MouseController.Shutdown();
+
+            return invokeResult;
         }
     }
 }

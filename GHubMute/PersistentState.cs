@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace GHubMute
 {
-    public class PersistentState : IAsyncDisposable
+    public class PersistentState : IDisposable
     {
         public static async Task<PersistentState> Load()
         {
@@ -16,7 +16,7 @@ namespace GHubMute
 
             var stream = new FileStream(statePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.SequentialScan | FileOptions.Asynchronous);
             var state = new PersistentState(stream);
-            await state.Load_Internal();
+            await state.Load_Internal().ConfigureAwait(false);
             return state;
         }
 
@@ -37,11 +37,12 @@ namespace GHubMute
             }
 
             _stream.Seek(0, SeekOrigin.Begin);
-            await JsonSerializer.SerializeAsync(_stream, _state);
+            await JsonSerializer.SerializeAsync(_stream, _state).ConfigureAwait(false);
             _stream.SetLength(_stream.Position);
+            await _stream.FlushAsync();
         }
 
-        public ValueTask DisposeAsync() => _stream.DisposeAsync();
+        public void Dispose() => _stream.Dispose();
 
         public bool DeviceIdIsManaged(string id) => _state.ManagedDeviceIds.Contains(id);
 
@@ -59,7 +60,7 @@ namespace GHubMute
             _stream.Seek(0, SeekOrigin.Begin);
             try
             {
-                _state = await JsonSerializer.DeserializeAsync<SerializedState>(_stream);
+                _state = await JsonSerializer.DeserializeAsync<SerializedState>(_stream).ConfigureAwait(false);
             }
             catch
             {
