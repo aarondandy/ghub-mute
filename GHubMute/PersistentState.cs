@@ -9,14 +9,14 @@ namespace GHubMute
 {
     public class PersistentState : IDisposable
     {
-        public static async Task<PersistentState> Load()
+        public static async Task<PersistentState> LoadAsync()
         {
             var currentDirectory = Path.GetDirectoryName((Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly()).Location);
             var statePath = Path.Combine(currentDirectory, "ghub-mute-state.json");
 
-            var stream = new FileStream(statePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.SequentialScan | FileOptions.Asynchronous);
+            var stream = new FileStream(statePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.SequentialScan);
             var state = new PersistentState(stream);
-            await state.Load_Internal().ConfigureAwait(false);
+            await state.LoadInternalAsync();
             return state;
         }
 
@@ -29,7 +29,7 @@ namespace GHubMute
         private bool _requiresSave = false;
         private SerializedState _state;
 
-        public async ValueTask SaveChanges()
+        public async ValueTask SaveChangesAsync()
         {
             if (!_requiresSave)
             {
@@ -55,12 +55,12 @@ namespace GHubMute
             }
         }
 
-        private async ValueTask Load_Internal()
+        private async ValueTask LoadInternalAsync()
         {
             _stream.Seek(0, SeekOrigin.Begin);
             try
             {
-                _state = await JsonSerializer.DeserializeAsync<SerializedState>(_stream).ConfigureAwait(false);
+                _state = (await JsonSerializer.DeserializeAsync<SerializedState>(_stream)) ?? new SerializedState();
             }
             catch
             {

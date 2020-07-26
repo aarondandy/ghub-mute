@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
@@ -8,11 +8,12 @@ namespace GHubMute
 {
     class Program
     {
+        [STAThread]
         static async Task<int> Main(string[] args)
         {
-            AudioCaptureStatus? status = null;
-            using var state = await PersistentState.Load().ConfigureAwait(false);
+            using var state = await PersistentState.LoadAsync();
             var audioController = new AudioController(state);
+            AudioCaptureStatus? status = null;
 
             var capturingColors = new Option<string>(
                 new[] { "--cc", "--capture-colors" },
@@ -67,28 +68,31 @@ namespace GHubMute
             rootCommand.Description = "Works with G-Hub to control microphone inputs";
             rootCommand.Handler = toggleCommand.Handler;
 
-            var invokeResult = rootCommand.Invoke(args);
-
-            var todoList = new List<Task>();
-
-            if (status.HasValue)
+            try
             {
-                var mouseController = new MouseController();
+                var invokeResult = rootCommand.Invoke(args, new WinConsole());
 
-                var parseResult = rootCommand.Parse(args);
-                mouseController.CapturingColors = LogiColor.ParseMultiple(parseResult.ValueForOption(capturingColors));
-                mouseController.MutedColors = LogiColor.ParseMultiple(parseResult.ValueForOption(muteColors));
+                var saveTask = state.SaveChangesAsync();
 
-                todoList.Add(mouseController.Show(status.GetValueOrDefault()));
+                if (status.HasValue)
+                {
+                    var mouseController = new MouseController();
+
+                    var parseResult = rootCommand.Parse(args);
+                    mouseController.CapturingColors = LogiColor.ParseMultiple(parseResult.ValueForOption(capturingColors));
+                    mouseController.MutedColors = LogiColor.ParseMultiple(parseResult.ValueForOption(muteColors));
+                    mouseController.Show(status.GetValueOrDefault());
+                }
+
+                await saveTask;
+
+                return invokeResult;
             }
-
-            todoList.Add(state.SaveChanges().AsTask());
-
-            await Task.WhenAll(todoList);
-
-            MouseController.Shutdown();
-
-            return invokeResult;
+            finally
+            {
+                MouseController.Shutdown();
+                WinConsole.Cleanup();
+            }
         }
     }
 }

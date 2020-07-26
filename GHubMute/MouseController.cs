@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using LedCSharp;
 
 namespace GHubMute
@@ -47,30 +46,39 @@ namespace GHubMute
             new LogiColor(0, 76, 100)
         };
 
-        public Task Show(AudioCaptureStatus status) => status switch
+        public void Show(AudioCaptureStatus status)
         {
-            AudioCaptureStatus.Muted => ShowMuted(),
-            AudioCaptureStatus.Capturing => ShowCapturing(),
-            _ => ShowError()
-        };
-
-        public async Task ShowMuted()
-        {
-            await ShowIndicatorColors(MutedColors, IndicatorTimings).ConfigureAwait(false);
+            if (status == AudioCaptureStatus.Muted)
+            {
+                ShowMuted();
+            }
+            else if (status == AudioCaptureStatus.Capturing)
+            {
+                ShowCapturing();
+            }
+            else
+            {
+                ShowError();
+            }
         }
 
-        public async Task ShowCapturing()
+        public void ShowMuted()
         {
-            await ShowIndicatorColors(CapturingColors, IndicatorTimings).ConfigureAwait(false);
+            ShowIndicatorColors(MutedColors, IndicatorTimings);
         }
 
-        public async Task ShowError()
+        public void ShowCapturing()
+        {
+            ShowIndicatorColors(CapturingColors, IndicatorTimings);
+        }
+
+        public void ShowError()
         {
             var colors = new[] { ErrorColor, LogiColor.Black };
-            await ShowIndicatorColors(Enumerable.Repeat(colors, 4).SelectMany(c => c), new[] { 150 }).ConfigureAwait(false);
+            ShowIndicatorColors(Enumerable.Repeat(colors, 4).SelectMany(c => c), new[] { 150 });
         }
 
-        private async Task ShowIndicatorColors(IEnumerable<LogiColor> colors, int[] delays) => await Task.Run(() =>
+        private void ShowIndicatorColors(IEnumerable<LogiColor> colors, int[] delays)
         {
             if (!Initialize())
             {
@@ -93,7 +101,7 @@ namespace GHubMute
             {
                 LogitechGSDK.LogiLedRestoreLighting();
             }
-        }).ConfigureAwait(false);
+        }
 
         private void ForceMouseColors(LogiColor color)
         {
